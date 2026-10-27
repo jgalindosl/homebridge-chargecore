@@ -6,15 +6,23 @@ import type {
   PlatformAccessory,
   Service,
 } from 'homebridge';
-import { attachChargeCoreCharacteristics, type ChargeCoreCharacteristics } from './custom-characteristics.js';
 import type { ChargerContext, ChargerTelemetry } from './types.js';
 
 type SetEnabled = (chargerId: string, enabled: boolean) => Promise<void>;
 
+// Eve-style energy characteristics and the custom charger state characteristic
+// from earlier versions. Energy is now reported through the Matter outlet.
+const LEGACY_CHARACTERISTIC_UUIDS = new Set([
+  'E863F10D-079E-48FF-8F27-9C2605A29F52',
+  'E863F10C-079E-48FF-8F27-9C2605A29F52',
+  'E863F10A-079E-48FF-8F27-9C2605A29F52',
+  'E863F126-079E-48FF-8F27-9C2605A29F52',
+  '7A1E0001-4A7C-4C53-9F27-434841524745',
+]);
+
 export class ChargerAccessory {
   private readonly outlet: Service;
   private readonly vehicleSensor?: Service;
-  private readonly custom: ChargeCoreCharacteristics;
   private readonly onCharacteristic: Characteristic;
   private lastSeen = 0;
   private online = false;
@@ -44,7 +52,9 @@ export class ChargerAccessory {
         await this.setEnabled(chargerId, enabled);
       });
 
-    this.custom = attachChargeCoreCharacteristics(api, this.outlet);
+    for (const characteristic of [...this.outlet.characteristics]) {
+      if (LEGACY_CHARACTERISTIC_UUIDS.has(characteristic.UUID)) this.outlet.removeCharacteristic(characteristic);
+    }
 
     const existingVehicleSensor = accessory.getServiceById(Service.ContactSensor, 'vehicle-connected');
     if (exposeVehicleSensor) {
@@ -84,12 +94,6 @@ export class ChargerAccessory {
       telemetry.fault ? Characteristic.StatusFault.GENERAL_FAULT : Characteristic.StatusFault.NO_FAULT,
     );
 
-    this.custom.chargerState.updateValue(telemetry.state);
-    if (telemetry.powerW !== undefined) this.custom.currentConsumption.updateValue(telemetry.powerW);
-    if (telemetry.energyKWh !== undefined) this.custom.totalConsumption.updateValue(telemetry.energyKWh);
-    if (telemetry.voltageV !== undefined) this.custom.voltage.updateValue(telemetry.voltageV);
-    if (telemetry.currentA !== undefined) this.custom.electricCurrent.updateValue(telemetry.currentA);
-
     if (this.vehicleSensor) {
       this.vehicleSensor.updateCharacteristic(
         Characteristic.ContactSensorState,
@@ -122,8 +126,6 @@ export class ChargerAccessory {
     this.outlet.updateCharacteristic(Characteristic.OutletInUse, false);
     this.outlet.updateCharacteristic(Characteristic.StatusActive, false);
     this.outlet.updateCharacteristic(Characteristic.StatusFault, Characteristic.StatusFault.GENERAL_FAULT);
-    this.custom.chargerState.updateValue('offline');
-    this.custom.currentConsumption.updateValue(0);
     if (this.vehicleSensor) {
       this.vehicleSensor.updateCharacteristic(Characteristic.StatusActive, false);
       this.vehicleSensor.updateCharacteristic(

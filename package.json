@@ -1,6 +1,6 @@
 {
     "name": "homebridge-chargecore",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Homebridge platform and OCPP 1.6 central system for EV wall chargers.",
     "type": "module",
     "main": "dist/index.js",
