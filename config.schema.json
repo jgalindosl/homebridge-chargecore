@@ -101,6 +101,12 @@
                 "type": "boolean",
                 "default": true,
                 "description": "Adds a contact sensor that indicates whether a vehicle is plugged in."
+            },
+            "autoStartOnConnect": {
+                "title": "Start Charging When Vehicle Connects",
+                "type": "boolean",
+                "default": false,
+                "description": "Sends RemoteStartTransaction as soon as the charger reports a vehicle plugged in. A session stopped from Home is not restarted until the vehicle is unplugged and reconnected."
             }
         }
     }

@@ -75,9 +75,12 @@ Add the platform through Homebridge UI, or add this to `config.json`:
   "offlineAfterSeconds": 90,
   "allowedChargerIds": ["garage-wallbox"],
   "logWebSocketTraffic": false,
-  "exposeVehicleSensor": true
+  "exposeVehicleSensor": true,
+  "autoStartOnConnect": false
 }
 ```
+
+Set `autoStartOnConnect` to `true` to send `RemoteStartTransaction` as soon as the charger reports a vehicle plugged in (connector status changes to `Preparing`). A session stopped from Home stays stopped until the vehicle is unplugged and reconnected.
 
 Without a `tls` section, the plugin listens using plain `ws://`. The endpoint does not require authentication, so expose its port only on a trusted, isolated network. Use `allowedChargerIds` to reject unexpected identifiers, but do not treat an identifier as a credential.
 

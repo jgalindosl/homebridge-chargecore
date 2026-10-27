@@ -26,6 +26,7 @@ export interface ChargeCoreConfig extends PlatformConfig {
   commandAckTimeoutSeconds?: number;
   allowedChargerIds?: string[];
   exposeVehicleSensor?: boolean;
+  autoStartOnConnect?: boolean;
 }
 
 export interface ChargerTelemetry {

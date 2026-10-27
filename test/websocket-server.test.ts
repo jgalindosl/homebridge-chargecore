@@ -162,6 +162,41 @@ describe('ChargeCoreWssServer', () => {
     await reply;
     expect(charging).toEqual([false, true, false]);
   });
+
+  it('starts charging automatically when a vehicle is plugged in', async () => {
+    const port = await findAvailablePort();
+    const log = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    } as unknown as Logger;
+    const config: ChargeCoreConfig = {
+      platform: 'ChargeCore',
+      host: '127.0.0.1',
+      port,
+      autoStartOnConnect: true,
+    };
+
+    server = new ChargeCoreWssServer(config, log);
+    await server.start();
+
+    socket = new WebSocket(`ws://127.0.0.1:${port}/chargecore/auto-charger`, 'ocpp1.6');
+    await once(socket, 'open');
+    const messages: unknown[][] = [];
+    socket.on('message', data => messages.push(JSON.parse(data.toString()) as unknown[]));
+    const status = (id: string, value: string) => socket!.send(JSON.stringify(
+      [2, id, 'StatusNotification', { connectorId: 1, status: value, errorCode: 'NoError' }],
+    ));
+
+    status('available', 'Available');
+    status('preparing', 'Preparing');
+    status('preparing-again', 'Preparing');
+    await vi.waitFor(() => expect(messages).toHaveLength(4));
+
+    const commands = messages.filter(message => message[0] === 2);
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).toMatchObject([2, expect.any(String), 'RemoteStartTransaction', { connectorId: 1, idTag: 'homebridge' }]);
+  });
 });
 
 async function findAvailablePort(): Promise<number> {

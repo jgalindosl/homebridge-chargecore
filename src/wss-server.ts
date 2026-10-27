@@ -28,6 +28,7 @@ interface ClientState {
   alive: boolean;
   chargerId?: string;
   connectorId?: number;
+  connectorStatus?: string;
   transactionId?: number;
   telemetry?: Partial<Omit<ChargerTelemetry, 'chargerId' | 'receivedAt'>>;
 }
@@ -283,6 +284,7 @@ export class ChargeCoreWssServer extends EventEmitter<ChargeCoreServerEvents> {
     const action = message[2];
     const payload = asObject(message[3]);
     let response: JsonObject;
+    let autoStart = false;
     switch (action) {
       case 'BootNotification': {
         state.telemetry = { ...state.telemetry, name: DEVICE_NAME, state: 'unknown', fault: false };
@@ -295,7 +297,7 @@ export class ChargeCoreWssServer extends EventEmitter<ChargeCoreServerEvents> {
         response = { currentTime: new Date().toISOString() };
         break;
       case 'StatusNotification':
-        this.applyOcppStatus(chargerId, state, payload);
+        autoStart = this.applyOcppStatus(chargerId, state, payload);
         response = {};
         break;
       case 'MeterValues':
@@ -326,9 +328,23 @@ export class ChargeCoreWssServer extends EventEmitter<ChargeCoreServerEvents> {
         return;
     }
     await this.sendOcpp(socket, [3, requestId, response], chargerId);
+    if (autoStart) await this.autoStartCharging(socket, chargerId, state);
   }
 
-  private applyOcppStatus(chargerId: string, state: ClientState, payload: JsonObject): void {
+  private async autoStartCharging(socket: WebSocket, chargerId: string, state: ClientState): Promise<void> {
+    this.log.info(`Vehicle connected to charger ${chargerId}; starting charging automatically`);
+    try {
+      await this.sendCommand(socket, chargerId, 'RemoteStartTransaction', {
+        connectorId: state.connectorId ?? 1,
+        idTag: REMOTE_ID_TAG,
+      });
+    } catch (error) {
+      this.log.warn(`Automatic start failed for charger ${chargerId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /** Returns true when a newly plugged-in vehicle should be started automatically. */
+  private applyOcppStatus(chargerId: string, state: ClientState, payload: JsonObject): boolean {
     const status = stringValue(payload.status);
     const mapped = mapOcppStatus(status);
     state.telemetry = {
@@ -339,11 +355,16 @@ export class ChargeCoreWssServer extends EventEmitter<ChargeCoreServerEvents> {
     };
     // Connector 0 reports the charge point as a whole and never carries a session status.
     const connectorId = integerValue(payload.connectorId);
+    let plugged = false;
     if (connectorId === undefined || connectorId > 0) {
       if (connectorId !== undefined) state.connectorId = connectorId;
       state.telemetry.charging = mapped.sessionActive;
+      // Only the transition into Preparing counts, so a session stopped by hand is not restarted.
+      plugged = status === 'Preparing' && state.connectorStatus !== 'Preparing';
+      if (status) state.connectorStatus = status;
     }
     this.emitOcppTelemetry(chargerId, state);
+    return plugged && Boolean(this.config.autoStartOnConnect) && state.transactionId === undefined;
   }
 
   private startTransaction(chargerId: string, state: ClientState, payload: JsonObject): number {
