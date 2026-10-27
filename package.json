@@ -1,0 +1,52 @@
+{
+    "name": "homebridge-chargecore",
+    "version": "1.0.0",
+    "description": "Homebridge platform and OCPP 1.6 central system for EV wall chargers.",
+    "type": "module",
+    "main": "dist/index.js",
+    "exports": "./dist/index.js",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist",
+        "config.schema.json",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "clean": "rimraf dist coverage",
+        "lint": "eslint src test",
+        "prepublishOnly": "npm run clean && npm run build && npm test",
+        "test": "vitest run --coverage",
+        "test:watch": "vitest"
+    },
+    "engines": {
+        "node": "^22.12.0 || ^24.0.0",
+        "homebridge": "^2.0.0"
+    },
+    "keywords": [
+        "homebridge-plugin",
+        "supports-hap",
+        "ev",
+        "charger",
+        "ocpp",
+        "websocket",
+        "homekit"
+    ],
+    "license": "MIT",
+    "dependencies": {
+        "ws": "8.22.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "9.38.0",
+        "@types/node": "22.18.12",
+        "@types/ws": "8.18.1",
+        "@vitest/coverage-v8": "4.1.12",
+        "eslint": "9.38.0",
+        "homebridge": "2.4.0",
+        "rimraf": "6.0.1",
+        "typescript": "5.9.3",
+        "typescript-eslint": "8.46.2",
+        "vitest": "4.1.12"
+    }
+}

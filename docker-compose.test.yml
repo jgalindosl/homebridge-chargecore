@@ -1,0 +1,4 @@
+services:
+  homebridge:
+    volumes:
+      - ${CHARGECORE_PLUGIN_PATH}:/homebridge/node_modules/homebridge-chargecore:ro

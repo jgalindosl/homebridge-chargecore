@@ -1,0 +1,107 @@
+{
+    "pluginAlias": "ChargeCore",
+    "pluginType": "platform",
+    "singular": true,
+    "headerDisplay": "ChargeCore accepts OCPP 1.6 JSON charger connections and exposes each charger as a HomeKit outlet. Restrict network access to the listening port.",
+    "footerDisplay": "Configure the charger with `ws://HOME_BRIDGE_HOST:PORT/chargecore` and no trailing slash. It appends `/CHARGEBOX_ID` when connecting. The base path is fixed and cannot be changed. Use `wss://` when TLS is configured.",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "title": "Platform Name",
+                "type": "string",
+                "default": "ChargeCore"
+            },
+            "host": {
+                "title": "Listen Address",
+                "type": "string",
+                "default": "0.0.0.0",
+                "description": "Use 0.0.0.0 for all interfaces or a specific local address."
+            },
+            "port": {
+                "title": "WebSocket Port",
+                "type": "integer",
+                "default": 9443,
+                "minimum": 1,
+                "maximum": 65535,
+                "x-schema-form": {
+                    "type": "number"
+                }
+            },
+            "tls": {
+                "title": "TLS (optional)",
+                "type": "object",
+                "description": "Leave unset to use plain ws://. When enabled, both certificate and private-key paths are required.",
+                "properties": {
+                    "certPath": {
+                        "title": "Certificate Path",
+                        "type": "string"
+                    },
+                    "keyPath": {
+                        "title": "Private Key Path",
+                        "type": "string"
+                    },
+                    "clientCaPath": {
+                        "title": "Client CA Path (optional mTLS)",
+                        "type": "string",
+                        "description": "When set, clients must present a certificate signed by this CA."
+                    }
+                }
+            },
+            "offlineAfterSeconds": {
+                "title": "Offline Timeout",
+                "type": "integer",
+                "default": 90,
+                "minimum": 5,
+                "maximum": 86400,
+                "x-schema-form": {
+                    "type": "number"
+                },
+                "description": "Mark a charger unavailable after this many seconds without telemetry. Use at least three telemetry intervals."
+            },
+            "maxPayloadBytes": {
+                "title": "Maximum Message Size",
+                "type": "integer",
+                "default": 65536,
+                "minimum": 1024,
+                "maximum": 1048576,
+                "x-schema-form": {
+                    "type": "number"
+                }
+            },
+            "logWebSocketTraffic": {
+                "title": "Log All WebSocket Traffic",
+                "type": "boolean",
+                "default": false,
+                "description": "Log OCPP connection attempts, rejections, raw messages, commands, acknowledgements, disconnects, and heartbeat frames. Payloads may contain sensitive charger data."
+            },
+            "commandAckTimeoutSeconds": {
+                "title": "Command Acknowledgement Timeout",
+                "type": "integer",
+                "default": 0,
+                "minimum": 0,
+                "maximum": 60,
+                "x-schema-form": {
+                    "type": "number"
+                },
+                "description": "0 sends OCPP controls without waiting. A positive value waits for the OCPP CALLRESULT or CALLERROR."
+            },
+            "allowedChargerIds": {
+                "title": "Allowed Charger IDs",
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "description": "Optional allow-list. If empty, any charger id is accepted. This is an identifier filter, not authentication."
+            },
+            "exposeVehicleSensor": {
+                "title": "Expose Vehicle Sensor",
+                "type": "boolean",
+                "default": true,
+                "description": "Adds a contact sensor that indicates whether a vehicle is plugged in."
+            }
+        }
+    }
+}

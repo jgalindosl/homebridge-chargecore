@@ -1,0 +1,5 @@
+src/
+test/
+coverage/
+eslint.config.js
+tsconfig.json
