@@ -1,6 +1,6 @@
 {
     "name": "homebridge-chargecore",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "Homebridge platform and OCPP 1.6 central system for EV wall chargers.",
     "type": "module",
     "main": "dist/index.js",
@@ -34,6 +34,14 @@
         "homekit"
     ],
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jgalindosl/homebridge-chargecore.git"
+    },
+    "bugs": {
+        "url": "https://github.com/jgalindosl/homebridge-chargecore/issues"
+    },
+    "homepage": "https://github.com/jgalindosl/homebridge-chargecore#readme",
     "dependencies": {
         "ws": "8.22.0"
     },
