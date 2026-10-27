@@ -23,7 +23,7 @@ function telemetry(overrides: Partial<ChargerTelemetry> = {}): ChargerTelemetry 
     chargerId: 'garage',
     name: DEVICE_NAME,
     state: 'charging',
-    enabled: true,
+    charging: true,
     powerW: 7_400,
     energyKWh: 3.5,
     fault: false,

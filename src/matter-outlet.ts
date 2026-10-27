@@ -7,7 +7,7 @@ import type {
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 import type { ChargerContext, ChargerTelemetry } from './types.js';
 
-type SetEnabled = (chargerId: string, enabled: boolean) => Promise<void>;
+type SetCharging = (chargerId: string, charging: boolean) => Promise<void>;
 type PowerMeasurement = Partial<ClusterStateMap['electricalPowerMeasurement']>;
 
 // Energy totals are delivered to controllers as unthrottled Matter events, so
@@ -41,15 +41,15 @@ export class ChargerMatterOutlet {
     private readonly log: Logger,
     chargerId: string,
     displayName: string,
-    setEnabled: SetEnabled,
+    setCharging: SetCharging,
     cached?: MatterAccessory,
   ) {
     const context = cached?.context as Partial<ChargerContext> | undefined;
     this.lastSeen = context?.lastSeen ?? 0;
 
-    const handleOnOff = async (enabled: boolean): Promise<void> => {
-      this.log.info(`${enabled ? 'Enabling' : 'Disabling'} charger ${chargerId} (Matter)`);
-      await setEnabled(chargerId, enabled);
+    const handleOnOff = async (charging: boolean): Promise<void> => {
+      this.log.info(`${charging ? 'Starting' : 'Stopping'} charging on charger ${chargerId} (Matter)`);
+      await setCharging(chargerId, charging);
     };
 
     this.accessory = {
@@ -101,7 +101,7 @@ export class ChargerMatterOutlet {
       this.setState('bridgedDeviceBasicInformation', { reachable: true });
     }
 
-    if (telemetry.enabled !== undefined) this.setState('onOff', { onOff: telemetry.enabled });
+    if (telemetry.charging !== undefined) this.setState('onOff', { onOff: telemetry.charging });
 
     const power = toMatterPowerMeasurement(telemetry);
     if (Object.keys(power).length > 0) this.setState('electricalPowerMeasurement', power);

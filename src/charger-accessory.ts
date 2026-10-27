@@ -8,7 +8,7 @@ import type {
 } from 'homebridge';
 import type { ChargerContext, ChargerTelemetry } from './types.js';
 
-type SetEnabled = (chargerId: string, enabled: boolean) => Promise<void>;
+type SetCharging = (chargerId: string, charging: boolean) => Promise<void>;
 
 // Eve-style energy characteristics and the custom charger state characteristic
 // from earlier versions. Energy is now reported through the Matter outlet.
@@ -31,7 +31,7 @@ export class ChargerAccessory {
     private readonly api: API,
     private readonly log: Logger,
     private readonly accessory: PlatformAccessory<ChargerContext>,
-    private readonly setEnabled: SetEnabled,
+    private readonly setCharging: SetCharging,
     exposeVehicleSensor: boolean,
   ) {
     const { Service, Characteristic } = api.hap;
@@ -47,9 +47,9 @@ export class ChargerAccessory {
     this.onCharacteristic = this.outlet.getCharacteristic(Characteristic.On)
       .onGet(() => this.onCharacteristic.value ?? false)
       .onSet(async (value: CharacteristicValue) => {
-        const enabled = Boolean(value);
-        this.log.info(`${enabled ? 'Enabling' : 'Disabling'} charger ${chargerId}`);
-        await this.setEnabled(chargerId, enabled);
+        const charging = Boolean(value);
+        this.log.info(`${charging ? 'Starting' : 'Stopping'} charging on charger ${chargerId}`);
+        await this.setCharging(chargerId, charging);
       });
 
     for (const characteristic of [...this.outlet.characteristics]) {
@@ -81,8 +81,8 @@ export class ChargerAccessory {
     this.online = true;
     this.accessory.context.lastSeen = telemetry.receivedAt;
 
-    if (telemetry.enabled !== undefined) {
-      this.onCharacteristic.updateValue(telemetry.enabled);
+    if (telemetry.charging !== undefined) {
+      this.onCharacteristic.updateValue(telemetry.charging);
     }
     this.outlet.updateCharacteristic(
       Characteristic.OutletInUse,

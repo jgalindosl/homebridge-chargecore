@@ -109,7 +109,7 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
       this.log,
       chargerId,
       displayName,
-      (id, enabled) => this.server.setEnabled(id, enabled),
+      (id, charging) => this.server.setCharging(id, charging),
       this.cachedMatterAccessories.get(chargerId),
     );
     this.matterOutlets.set(chargerId, outlet);
@@ -160,7 +160,7 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
       this.api,
       this.log,
       accessory,
-      (chargerId, enabled) => this.server.setEnabled(chargerId, enabled),
+      (chargerId, charging) => this.server.setCharging(chargerId, charging),
       this.config.exposeVehicleSensor ?? true,
     );
   }

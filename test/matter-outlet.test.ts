@@ -14,11 +14,11 @@ function telemetry(overrides: Partial<ChargerTelemetry> = {}): ChargerTelemetry 
   return { chargerId: 'garage', state: 'charging', fault: false, receivedAt: 1_000_000, ...overrides };
 }
 
-function createOutlet(setEnabled = vi.fn(async () => {})) {
+function createOutlet(setCharging = vi.fn(async () => {})) {
   const matter = createMatterApi();
   const log = createLogger();
-  const outlet = new ChargerMatterOutlet(asMatterApi(matter), log, 'garage', 'chargecore', setEnabled);
-  return { matter, log, outlet, setEnabled };
+  const outlet = new ChargerMatterOutlet(asMatterApi(matter), log, 'garage', 'chargecore', setCharging);
+  return { matter, log, outlet, setCharging };
 }
 
 function stateUpdates(matter: ReturnType<typeof createMatterApi>, cluster: string) {
@@ -69,20 +69,20 @@ describe('ChargerMatterOutlet', () => {
   });
 
   it('forwards Matter on/off commands to the charger', async () => {
-    const { outlet, setEnabled } = createOutlet();
+    const { outlet, setCharging } = createOutlet();
     const handlers = outlet.accessory.handlers?.onOff;
 
     await handlers?.on?.(undefined as never, undefined as never);
     await handlers?.off?.(undefined as never, undefined as never);
 
-    expect(setEnabled.mock.calls).toEqual([['garage', true], ['garage', false]]);
+    expect(setCharging.mock.calls).toEqual([['garage', true], ['garage', false]]);
   });
 
   it('maps telemetry into the onOff, power and energy clusters', async () => {
     const { matter, outlet } = createOutlet();
     await outlet.register();
 
-    outlet.update(telemetry({ enabled: true, powerW: 7_360, voltageV: 230, currentA: 32, energyKWh: 4.2 }));
+    outlet.update(telemetry({ charging: true, powerW: 7_360, voltageV: 230, currentA: 32, energyKWh: 4.2 }));
     await flush();
 
     const uuid = outlet.accessory.UUID;

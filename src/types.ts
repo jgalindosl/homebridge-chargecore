@@ -31,7 +31,7 @@ export interface ChargeCoreConfig extends PlatformConfig {
 export interface ChargerTelemetry {
   chargerId: string;
   name?: string;
-  enabled?: boolean;
+  charging?: boolean;
   state: ChargerState;
   powerW?: number;
   energyKWh?: number;

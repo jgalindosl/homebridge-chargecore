@@ -28,7 +28,7 @@ The following Chargecore devices have been tested with this plugin
 
 HomeKit does not define an EV charger service, so this plugin uses the closest native model:
 
-- An **Outlet** provides on/off control in Apple Home and through Siri.
+- An **Outlet** starts and stops charging from Apple Home and Siri. It is on while a charging session is active (including when the vehicle or charger has suspended power delivery).
 - `OutletInUse` is true while the charger reports `charging` or draws more than 50 W.
 - Standard `StatusActive` and `StatusFault` characteristics reflect availability and faults.
 - An optional **Contact Sensor** indicates that a vehicle is plugged in.
@@ -39,7 +39,7 @@ HomeKit has no standard energy characteristics, so live power and energy are pub
 
 When Matter is enabled for the bridge running this plugin (Homebridge 2.x with a `matter` section in the bridge config), each charger is also exposed as a Matter **On/Off Plug-in Unit** (outlet) alongside the HAP accessory:
 
-- **On/Off** mirrors the HAP outlet and sends the same OCPP `ChangeAvailability` calls.
+- **On/Off** mirrors the HAP outlet and sends the same OCPP `RemoteStartTransaction` / `RemoteStopTransaction` calls.
 - **Electrical Power Measurement** (AC) reports active power, voltage, and current from OCPP `MeterValues`, converted to Matter units (W → mW, V → mV, A → mA).
 - **Electrical Energy Measurement** reports cumulative imported energy (kWh → mWh). Totals are pushed when they change, at most every 30 seconds.
 - The bridged device is marked unreachable and live readings are cleared once the charger exceeds `offlineAfterSeconds`.
@@ -129,7 +129,7 @@ Compression is disabled and the default maximum message size is 65,536 bytes. Me
 
 The server accepts OCPP 1.6 JSON array frames only. It handles `BootNotification`, `Heartbeat`, `StatusNotification`, `MeterValues`, `Authorize`, `StartTransaction`, `StopTransaction`, `DataTransfer`, `DiagnosticsStatusNotification`, and `FirmwareStatusNotification`.
 
-`StatusNotification` drives availability, vehicle connection, charging state, and faults. `MeterValues` maps `Power.Active.Import`, `Energy.Active.Import.Register`, `Current.Import`, and `Voltage` into the Matter power and energy clusters. HomeKit and Matter on/off requests are sent as OCPP `ChangeAvailability` calls.
+`StatusNotification` drives availability, vehicle connection, charging state, and faults. `MeterValues` maps `Power.Active.Import`, `Energy.Active.Import.Register`, `Current.Import`, and `Voltage` into the Matter power and energy clusters. HomeKit and Matter on/off requests are sent as OCPP `RemoteStartTransaction` (using the last active connector and the `homebridge` idTag) and `RemoteStopTransaction` calls. Stopping requires a known transaction id, which is captured from `StartTransaction` or recovered from `MeterValues` after a reconnect.
 
 Unsupported charger calls receive an OCPP `NotSupported` CALLERROR.
 

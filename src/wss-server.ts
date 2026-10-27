@@ -27,10 +27,15 @@ interface PendingCommand {
 interface ClientState {
   alive: boolean;
   chargerId?: string;
+  connectorId?: number;
+  transactionId?: number;
   telemetry?: Partial<Omit<ChargerTelemetry, 'chargerId' | 'receivedAt'>>;
 }
 
 type JsonObject = Record<string, unknown>;
+
+// idTag presented to the charger for sessions started from HomeKit or Matter (OCPP max 20 chars).
+const REMOTE_ID_TAG = 'homebridge';
 class OcppMessageError extends Error {}
 
 export interface ChargeCoreServerEvents {
@@ -160,21 +165,35 @@ export class ChargeCoreWssServer extends EventEmitter<ChargeCoreServerEvents> {
     this.sockets.clear();
   }
 
-  async setEnabled(chargerId: string, enabled: boolean): Promise<void> {
+  async setCharging(chargerId: string, charging: boolean): Promise<void> {
     const socket = this.sockets.get(chargerId);
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       throw new Error(`Charger ${chargerId} is not connected`);
     }
 
+    const state = this.clientState.get(socket);
+    if (charging) {
+      await this.sendCommand(socket, chargerId, 'RemoteStartTransaction', {
+        connectorId: state?.connectorId ?? 1,
+        idTag: REMOTE_ID_TAG,
+      });
+      return;
+    }
+
+    const transactionId = state?.transactionId;
+    if (transactionId === undefined) {
+      throw new Error(`Charger ${chargerId} has no active charging session to stop`);
+    }
+    await this.sendCommand(socket, chargerId, 'RemoteStopTransaction', { transactionId });
+  }
+
+  private async sendCommand(socket: WebSocket, chargerId: string, action: string, payload: JsonObject): Promise<void> {
     const requestId = randomUUID();
     const timeoutSeconds = this.config.commandAckTimeoutSeconds ?? 0;
-    const payload = JSON.stringify([2, requestId, 'ChangeAvailability', {
-      connectorId: 0,
-      type: enabled ? 'Operative' : 'Inoperative',
-    }]);
-    this.logTraffic(`Outgoing WebSocket message [${chargerId}]: ${payload}`);
+    const message = JSON.stringify([2, requestId, action, payload]);
+    this.logTraffic(`Outgoing WebSocket message [${chargerId}]: ${message}`);
     if (timeoutSeconds <= 0) {
-      await send(socket, payload);
+      await send(socket, message);
       return;
     }
 
@@ -187,7 +206,7 @@ export class ChargeCoreWssServer extends EventEmitter<ChargeCoreServerEvents> {
       this.pendingCommands.set(requestId, { resolve, reject, timeout, socket });
     });
     try {
-      await send(socket, payload);
+      await send(socket, message);
     } catch (error) {
       const pending = this.pendingCommands.get(requestId);
       if (pending) clearTimeout(pending.timeout);
@@ -286,10 +305,13 @@ export class ChargeCoreWssServer extends EventEmitter<ChargeCoreServerEvents> {
       case 'Authorize':
         response = { idTagInfo: { status: 'Accepted' } };
         break;
-      case 'StartTransaction':
-        response = { transactionId: Date.now(), idTagInfo: { status: 'Accepted' } };
+      case 'StartTransaction': {
+        const transactionId = this.startTransaction(chargerId, state, payload);
+        response = { transactionId, idTagInfo: { status: 'Accepted' } };
         break;
+      }
       case 'StopTransaction':
+        this.stopTransaction(chargerId, state);
         response = { idTagInfo: { status: 'Accepted' } };
         break;
       case 'DataTransfer':
@@ -314,12 +336,37 @@ export class ChargeCoreWssServer extends EventEmitter<ChargeCoreServerEvents> {
       state: mapped.state,
       fault: mapped.fault,
       vehicleConnected: mapped.vehicleConnected,
-      enabled: status !== 'Unavailable',
     };
+    // Connector 0 reports the charge point as a whole and never carries a session status.
+    const connectorId = integerValue(payload.connectorId);
+    if (connectorId === undefined || connectorId > 0) {
+      if (connectorId !== undefined) state.connectorId = connectorId;
+      state.telemetry.charging = mapped.sessionActive;
+    }
+    this.emitOcppTelemetry(chargerId, state);
+  }
+
+  private startTransaction(chargerId: string, state: ClientState, payload: JsonObject): number {
+    // OCPP 1.6 transaction ids are 32-bit integers.
+    const transactionId = Math.floor(Date.now() / 1_000) % 2_147_483_647;
+    state.transactionId = transactionId;
+    const connectorId = integerValue(payload.connectorId);
+    if (connectorId !== undefined && connectorId > 0) state.connectorId = connectorId;
+    state.telemetry = { ...state.telemetry, charging: true };
+    this.emitOcppTelemetry(chargerId, state);
+    return transactionId;
+  }
+
+  private stopTransaction(chargerId: string, state: ClientState): void {
+    delete state.transactionId;
+    state.telemetry = { ...state.telemetry, charging: false };
     this.emitOcppTelemetry(chargerId, state);
   }
 
   private applyOcppMeterValues(chargerId: string, state: ClientState, payload: JsonObject): void {
+    // Recovers the session id when the charger reconnects mid-transaction.
+    const transactionId = integerValue(payload.transactionId);
+    if (transactionId !== undefined) state.transactionId = transactionId;
     const meterValues = Array.isArray(payload.meterValue) ? payload.meterValue : [];
     const latest = asObject(meterValues.at(-1));
     const samples = Array.isArray(latest.sampledValue) ? latest.sampledValue : [];
@@ -434,21 +481,26 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+function integerValue(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) ? value : undefined;
+}
+
 function mapOcppStatus(status: string | undefined): {
   state: ChargerTelemetry['state'];
   fault: boolean;
   vehicleConnected: boolean;
+  sessionActive: boolean;
 } {
   switch (status) {
-    case 'Available': return { state: 'available', fault: false, vehicleConnected: false };
-    case 'Preparing': return { state: 'connected', fault: false, vehicleConnected: true };
-    case 'Charging': return { state: 'charging', fault: false, vehicleConnected: true };
+    case 'Available': return { state: 'available', fault: false, vehicleConnected: false, sessionActive: false };
+    case 'Preparing': return { state: 'connected', fault: false, vehicleConnected: true, sessionActive: false };
+    case 'Charging': return { state: 'charging', fault: false, vehicleConnected: true, sessionActive: true };
     case 'SuspendedEV':
-    case 'SuspendedEVSE': return { state: 'paused', fault: false, vehicleConnected: true };
-    case 'Finishing': return { state: 'finishing', fault: false, vehicleConnected: true };
-    case 'Faulted': return { state: 'faulted', fault: true, vehicleConnected: false };
-    case 'Unavailable': return { state: 'offline', fault: false, vehicleConnected: false };
-    default: return { state: 'unknown', fault: false, vehicleConnected: false };
+    case 'SuspendedEVSE': return { state: 'paused', fault: false, vehicleConnected: true, sessionActive: true };
+    case 'Finishing': return { state: 'finishing', fault: false, vehicleConnected: true, sessionActive: false };
+    case 'Faulted': return { state: 'faulted', fault: true, vehicleConnected: false, sessionActive: false };
+    case 'Unavailable': return { state: 'offline', fault: false, vehicleConnected: false, sessionActive: false };
+    default: return { state: 'unknown', fault: false, vehicleConnected: false, sessionActive: false };
   }
 }
 

@@ -113,6 +113,55 @@ describe('ChargeCoreWssServer', () => {
       fault: false,
     });
   });
+
+  it('starts and stops charging with remote transaction commands', async () => {
+    const port = await findAvailablePort();
+    const log = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    } as unknown as Logger;
+    const config: ChargeCoreConfig = {
+      platform: 'ChargeCore',
+      host: '127.0.0.1',
+      port,
+    };
+
+    server = new ChargeCoreWssServer(config, log);
+    const charging: (boolean | undefined)[] = [];
+    server.on('telemetry', telemetry => charging.push(telemetry.charging));
+    await server.start();
+
+    socket = new WebSocket(`ws://127.0.0.1:${port}/chargecore/remote-charger`, 'ocpp1.6');
+    await once(socket, 'open');
+    const nextMessage = async (): Promise<unknown[]> => {
+      const [data] = await once(socket!, 'message');
+      return JSON.parse(data.toString()) as unknown[];
+    };
+
+    let reply = nextMessage();
+    socket.send(JSON.stringify([2, 'status', 'StatusNotification', { connectorId: 2, status: 'Preparing', errorCode: 'NoError' }]));
+    await reply;
+    await expect(server.setCharging('remote-charger', false)).rejects.toThrow('no active charging session');
+
+    reply = nextMessage();
+    await server.setCharging('remote-charger', true);
+    expect(await reply).toMatchObject([2, expect.any(String), 'RemoteStartTransaction', { connectorId: 2, idTag: 'homebridge' }]);
+
+    reply = nextMessage();
+    socket.send(JSON.stringify([2, 'start', 'StartTransaction', { connectorId: 2, idTag: 'homebridge', meterStart: 0, timestamp: new Date().toISOString() }]));
+    const [, , { transactionId }] = await reply as [number, string, { transactionId: number }];
+    expect(transactionId).toBeLessThanOrEqual(2_147_483_647);
+
+    reply = nextMessage();
+    await server.setCharging('remote-charger', false);
+    expect(await reply).toMatchObject([2, expect.any(String), 'RemoteStopTransaction', { transactionId }]);
+
+    reply = nextMessage();
+    socket.send(JSON.stringify([2, 'stop', 'StopTransaction', { transactionId, meterStop: 10, timestamp: new Date().toISOString() }]));
+    await reply;
+    expect(charging).toEqual([false, true, false]);
+  });
 });
 
 async function findAvailablePort(): Promise<number> {
