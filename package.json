@@ -27,6 +27,7 @@
     "keywords": [
         "homebridge-plugin",
         "supports-hap",
+        "supports-matter",
         "ev",
         "charger",
         "ocpp",
