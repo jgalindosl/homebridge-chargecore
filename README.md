@@ -2,11 +2,11 @@
 
 # homebridge-chargecore
 
-`homebridge-chargecore` is an OCPP 1.6 JSON central system for exposing Chargecore EV wall chargers as HomeKit accessories.
+A [Homebridge](https://homebridge.io) plugin for an [OCPP](https://openchargealliance.org/protocols/open-charge-point-protocol/) 1.6 central system for exposing Chargecore EV wall chargers as [HomeKit](https://www.apple.com/home-app/) and [Matter](https://csa-iot.org/all-solutions/matter/) accessories.
 
 ## Supported Devices
 The following Chargecore devices have been tested with this plugin
-- AC003PT27
+* [AC003+ EV (AC003PT27)](https://www.chargecoreglobal.com/nkr-ac003-single-output-wall-mounted-electric-car-charger_456)
 
 ## Charger configuration
 
@@ -17,10 +17,10 @@ The following Chargecore devices have been tested with this plugin
     </td>
     <td width="45%" valign="top">
       <ol>
-        <li>Log in through the cog icon (default password: <code>123456</code>).</li>
-        <li>Go to <strong>Settings → URL</strong>.</li>
-        <li>Replace the URL with <code>ws://HOME_BRIDGE_HOST:9443/chargecore</code>.</li>
-        <li>Press <strong>OK</strong> and wait for the success message to disappear. Do not press OK again.</li>
+        <li>Log in through the cog icon (default password: <code>123456</code>)</li>
+        <li>Go to <strong>Settings → URL</strong></li>
+        <li>Replace the URL with <code>ws://HOME_BRIDGE_HOST:9443/chargecore</code></li>
+        <li>Press <strong>OK</strong> and wait for the success message to disappear. Do not press OK again</li>
       </ol>
     </td>
   </tr>
