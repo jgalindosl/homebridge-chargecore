@@ -1,3 +1,5 @@
+<img src="images/chargecore-logo.png" alt="Chargecore" height="50">
+
 # homebridge-chargecore
 
 `homebridge-chargecore` is an OCPP 1.6 JSON central system for exposing Chargecore EV wall chargers as HomeKit accessories.
