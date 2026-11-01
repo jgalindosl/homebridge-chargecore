@@ -39,20 +39,23 @@ HomeKit has no standard energy characteristics, so live power and energy are pub
 
 ## Matter representation
 
-When Matter is enabled for the bridge running this plugin (Homebridge 2.x with a `matter` section in the bridge config), each charger is also exposed as a Matter **On/Off Plug-in Unit** (outlet) alongside the HAP accessory:
+When Matter is enabled for the bridge running this plugin (a `matter` section in the bridge config), each charger is also exposed as a Matter **EV charger** (Energy EVSE device type) alongside the HAP accessory:
 
-- **On/Off** mirrors the HAP outlet and sends the same OCPP `RemoteStartTransaction` / `RemoteStopTransaction` calls.
-- **Electrical Power Measurement** (AC) reports active power, voltage, and current from OCPP `MeterValues`, converted to Matter units (W → mW, V → mV, A → mA).
-- **Electrical Energy Measurement** reports cumulative imported energy (kWh → mWh). Totals are pushed when they change, at most every 30 seconds.
+- **Energy EVSE** reports whether a vehicle is plugged in and charging, whether charging is enabled, and faults. `EnableCharging` and `Disable` commands send the same OCPP `RemoteStartTransaction` / `RemoteStopTransaction` calls as the HAP outlet; an `EnableCharging` during an active session (for example to change the current limit) does not start a new one.
+- **Energy EVSE Mode** offers *Manual* and *Start on Plug-in*. The current mode follows `autoStartOnConnect`; change that setting to switch modes, since controllers cannot.
+- A **meter** part (Electrical Sensor) reports active power, voltage, and current from OCPP `MeterValues`, converted to Matter units (W → mW, V → mV, A → mA), and cumulative imported energy (kWh → mWh). Totals are pushed when they change, at most every 30 seconds.
+- A wired **power source** part and a **device energy management** part complete the composition the Matter specification requires of an EV charger. No power forecast is published.
 - The bridged device is marked unreachable and live readings are cleared once the charger exceeds `offlineAfterSeconds`.
 
-Controllers that support Matter 1.3 energy metrics, such as Apple Home on iOS 27, show the charger's live power draw. If both the HAP bridge and the Matter bridge are paired to the same home, the charger appears twice; hide or remove the one you don't need.
+Support for the EV charger device type varies between Matter controllers. If both the HAP bridge and the Matter bridge are paired to the same home, the charger appears twice; hide or remove the one you don't need.
+
+Earlier versions exposed chargers to Matter as an on/off outlet. Those cached outlets are removed on startup and replaced by the EV charger, so a Matter controller has to pick up the new device.
 
 Accessories cached from earlier versions have their Eve-style energy and charger-state characteristics removed on startup.
 
 ## Requirements
 
-- Homebridge 2.x
+- Homebridge 2.5 or later
 - Node.js 22 or 24
 - An OCPP 1.6 JSON charger acting as a WebSocket client
 

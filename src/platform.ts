@@ -7,7 +7,7 @@ import type {
   PlatformAccessory,
 } from 'homebridge';
 import { ChargerAccessory } from './charger-accessory.js';
-import { ChargerMatterOutlet } from './matter-outlet.js';
+import { ChargerMatterEvse, matterChargerUuid } from './matter-charger.js';
 import { ChargeCoreWssServer } from './wss-server.js';
 import { DEVICE_NAME, PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 import type { ChargeCoreConfig, ChargerContext, ChargerTelemetry } from './types.js';
@@ -17,7 +17,7 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
   private readonly handlers = new Map<string, ChargerAccessory>();
   private readonly cachedMatterAccessories = new Map<string, MatterAccessory>();
   private readonly invalidMatterAccessories: MatterAccessory[] = [];
-  private readonly matterOutlets = new Map<string, ChargerMatterOutlet>();
+  private readonly matterChargers = new Map<string, ChargerMatterEvse>();
   private readonly server: ChargeCoreWssServer;
   private staleTimer?: NodeJS.Timeout;
 
@@ -46,7 +46,10 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
 
   configureMatterAccessory(accessory: MatterAccessory): void {
     const chargerId = (accessory.context as Partial<ChargerContext>).chargerId;
-    if (chargerId) this.cachedMatterAccessories.set(chargerId, accessory);
+    // Chargers were on/off outlets before Homebridge had an EV charger type;
+    // those cached outlets have a different UUID and are removed.
+    const current = chargerId && this.api.matter && accessory.UUID === matterChargerUuid(this.api.matter, chargerId);
+    if (current) this.cachedMatterAccessories.set(chargerId, accessory);
     else this.invalidMatterAccessories.push(accessory);
   }
 
@@ -80,13 +83,13 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
     const matter = this.matter;
     if (!matter) {
       if (this.cachedMatterAccessories.size > 0) {
-        this.log.warn('Matter is not enabled for this bridge; ChargeCore Matter outlets will not be updated.');
+        this.log.warn('Matter is not enabled for this bridge; ChargeCore Matter chargers will not be updated.');
       }
       return;
     }
 
     if (this.invalidMatterAccessories.length > 0) {
-      this.log.warn(`Removing ${this.invalidMatterAccessories.length} cached Matter accessories without a charger id`);
+      this.log.warn(`Removing ${this.invalidMatterAccessories.length} outdated cached Matter accessories`);
       try {
         await matter.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, this.invalidMatterAccessories);
       } catch (error) {
@@ -99,21 +102,22 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
       const displayName = this.cachedAccessories.get(chargerId)?.displayName
         ?? this.cachedMatterAccessories.get(chargerId)?.displayName
         ?? DEVICE_NAME;
-      return this.addMatterOutlet(matter, chargerId, displayName);
+      return this.addMatterCharger(matter, chargerId, displayName);
     }));
   }
 
-  private addMatterOutlet(matter: MatterAPI, chargerId: string, displayName: string): Promise<void> {
-    const outlet = new ChargerMatterOutlet(
+  private addMatterCharger(matter: MatterAPI, chargerId: string, displayName: string): Promise<void> {
+    const charger = new ChargerMatterEvse(
       matter,
       this.log,
       chargerId,
       displayName,
       (id, charging) => this.server.setCharging(id, charging),
+      this.config.autoStartOnConnect ?? false,
       this.cachedMatterAccessories.get(chargerId),
     );
-    this.matterOutlets.set(chargerId, outlet);
-    return outlet.register();
+    this.matterChargers.set(chargerId, charger);
+    return charger.register();
   }
 
   private async shutdown(): Promise<void> {
@@ -145,14 +149,14 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
 
     const matter = this.matter;
     if (!matter) return;
-    const outlet = this.matterOutlets.get(telemetry.chargerId);
-    if (!outlet) {
-      void this.addMatterOutlet(matter, telemetry.chargerId, displayName);
-      this.log.info(`Added Matter outlet for charger ${telemetry.chargerId}`);
-    } else if (outlet.accessory.displayName !== displayName) {
-      outlet.rename(displayName);
+    const charger = this.matterChargers.get(telemetry.chargerId);
+    if (!charger) {
+      void this.addMatterCharger(matter, telemetry.chargerId, displayName);
+      this.log.info(`Added Matter EV charger for charger ${telemetry.chargerId}`);
+    } else if (charger.accessory.displayName !== displayName) {
+      charger.rename(displayName);
     }
-    this.matterOutlets.get(telemetry.chargerId)?.update(telemetry);
+    this.matterChargers.get(telemetry.chargerId)?.update(telemetry);
   }
 
   private createHandler(accessory: PlatformAccessory<ChargerContext>): ChargerAccessory {
@@ -169,6 +173,6 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
     const offlineAfterMs = (this.config.offlineAfterSeconds ?? 90) * 1_000;
     const now = Date.now();
     for (const handler of this.handlers.values()) handler.markOfflineIfStale(now, offlineAfterMs);
-    for (const outlet of this.matterOutlets.values()) outlet.markOfflineIfStale(now, offlineAfterMs);
+    for (const charger of this.matterChargers.values()) charger.markOfflineIfStale(now, offlineAfterMs);
   }
 }

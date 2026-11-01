@@ -1,6 +1,7 @@
 import * as hap from '@homebridge/hap-nodejs';
 import type { MatterAccessory } from 'homebridge';
 import { afterEach, describe, expect, it } from 'vitest';
+import { METER_PART } from '../src/matter-charger.js';
 import { ChargeCorePlatform } from '../src/platform.js';
 import { DEVICE_NAME, PLATFORM_NAME, PLUGIN_NAME } from '../src/settings.js';
 import type { ChargeCoreConfig, ChargerTelemetry } from '../src/types.js';
@@ -51,7 +52,7 @@ describe('ChargeCorePlatform', () => {
     return { api, platform, emitTelemetry };
   }
 
-  it('registers a HAP accessory and a Matter outlet for a newly discovered charger', async () => {
+  it('registers a HAP accessory and a Matter EV charger for a newly discovered charger', async () => {
     const matter = createMatterApi();
     const { api, emitTelemetry } = await launch(matter);
 
@@ -60,46 +61,52 @@ describe('ChargeCorePlatform', () => {
 
     expect(api.registerPlatformAccessories).toHaveBeenCalledTimes(1);
     expect(matter.registerPlatformAccessories).toHaveBeenCalledWith(PLUGIN_NAME, PLATFORM_NAME, [
-      expect.objectContaining({ UUID: matter.uuid.generate('garage:matter'), displayName: DEVICE_NAME }),
+      expect.objectContaining({ UUID: matter.uuid.generate('garage:evse'), displayName: DEVICE_NAME }),
     ]);
-    const uuid = matter.uuid.generate('garage:matter');
+    const uuid = matter.uuid.generate('garage:evse');
     expect(matter.updateAccessoryState).toHaveBeenCalledWith(uuid, 'electricalPowerMeasurement', {
       activePower: 7_400_000,
-    });
+    }, METER_PART);
     expect(matter.updateAccessoryState).toHaveBeenCalledWith(uuid, 'electricalEnergyMeasurement', {
       cumulativeEnergyImported: { energy: 3_500_000 },
-    });
+    }, METER_PART);
 
     emitTelemetry(telemetry({ powerW: 3_700 }));
     await flush();
     expect(matter.registerPlatformAccessories).toHaveBeenCalledTimes(1);
     expect(matter.updateAccessoryState).toHaveBeenCalledWith(uuid, 'electricalPowerMeasurement', {
       activePower: 3_700_000,
-    });
+    }, METER_PART);
   });
 
-  it('re-registers cached Matter outlets with handlers at launch', async () => {
+  it('re-registers cached Matter chargers with handlers at launch', async () => {
     const matter = createMatterApi();
     const cached = {
-      UUID: matter.uuid.generate('garage:matter'),
+      UUID: matter.uuid.generate('garage:evse'),
       displayName: DEVICE_NAME,
       context: { chargerId: 'garage' },
     } as unknown as MatterAccessory;
     const orphan = { UUID: 'orphan', displayName: 'Orphan', context: {} } as unknown as MatterAccessory;
+    const outlet = {
+      UUID: matter.uuid.generate('garage:matter'),
+      displayName: DEVICE_NAME,
+      context: { chargerId: 'garage' },
+    } as unknown as MatterAccessory;
 
     await launch(matter, platform => {
       platform.configureMatterAccessory(cached);
       platform.configureMatterAccessory(orphan);
+      platform.configureMatterAccessory(outlet);
     });
 
-    expect(matter.unregisterPlatformAccessories).toHaveBeenCalledWith(PLUGIN_NAME, PLATFORM_NAME, [orphan]);
+    expect(matter.unregisterPlatformAccessories).toHaveBeenCalledWith(PLUGIN_NAME, PLATFORM_NAME, [orphan, outlet]);
     expect(matter.registerPlatformAccessories).toHaveBeenCalledTimes(1);
     const [registered] = matter.registerPlatformAccessories.mock.calls[0]![2];
     expect(registered).toMatchObject({ UUID: cached.UUID, context: { chargerId: 'garage' } });
-    expect(registered?.handlers?.onOff?.on).toBeTypeOf('function');
+    expect(registered?.handlers?.energyEvse?.enableCharging).toBeTypeOf('function');
   });
 
-  it('adds a Matter outlet for chargers that only have a cached HAP accessory', async () => {
+  it('adds a Matter EV charger for chargers that only have a cached HAP accessory', async () => {
     const matter = createMatterApi();
     await launch(matter, platform => {
       const accessory = new FakePlatformAccessory(DEVICE_NAME, hap.uuid.generate(`${PLUGIN_NAME}:garage`));
@@ -108,7 +115,7 @@ describe('ChargeCorePlatform', () => {
     });
 
     expect(matter.registerPlatformAccessories).toHaveBeenCalledWith(PLUGIN_NAME, PLATFORM_NAME, [
-      expect.objectContaining({ UUID: matter.uuid.generate('garage:matter') }),
+      expect.objectContaining({ UUID: matter.uuid.generate('garage:evse') }),
     ]);
   });
 

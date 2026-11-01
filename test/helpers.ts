@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import * as hap from '@homebridge/hap-nodejs';
-import { deviceTypes, type API, type Logger, type MatterAPI, type MatterAccessory } from 'homebridge';
+import { clusters, deviceTypes, MatterStatus, type API, type Logger, type MatterAPI, type MatterAccessory } from 'homebridge';
 import { vi } from 'vitest';
 
 export function createLogger(): Logger {
@@ -18,11 +18,13 @@ export function createMatterApi() {
   return {
     uuid: hap.uuid,
     deviceTypes,
+    types: clusters,
+    status: MatterStatus,
     registerPlatformAccessories: vi.fn<PlatformAccessoriesCall>(async () => {}),
     updatePlatformAccessories: vi.fn<(accessories: MatterAccessory[]) => Promise<void>>(async () => {}),
     unregisterPlatformAccessories: vi.fn<PlatformAccessoriesCall>(async () => {}),
     updateAccessoryState: vi.fn<
-      (uuid: string, cluster: string, attributes: Record<string, unknown>) => Promise<void>
+      (uuid: string, cluster: string, attributes: Record<string, unknown>, partId?: string) => Promise<void>
     >(async () => {}),
   };
 }
