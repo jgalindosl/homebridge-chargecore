@@ -1,6 +1,6 @@
 <img src="images/chargecore-logo.png" alt="Chargecore" height="50">
 
-# homebridge-chargecore
+# homebridge-chargecore [![verified-by-homebridge](https://img.shields.io/badge/_-verified-blueviolet?color=%23491F59&style=flat&logoColor=%23FFFFFF&logo=homebridge)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 
 A [Homebridge](https://homebridge.io) plugin for an [OCPP](https://openchargealliance.org/protocols/open-charge-point-protocol/) 1.6 central system for exposing Chargecore EV wall chargers as [HomeKit](https://www.apple.com/home-app/) and [Matter](https://csa-iot.org/all-solutions/matter/) accessories.
 
@@ -84,7 +84,7 @@ Add the platform through Homebridge UI, or add this to `config.json`:
 
 Set `autoStartOnConnect` to `true` to send `RemoteStartTransaction` as soon as the charger reports a vehicle plugged in (connector status changes to `Preparing`). A session stopped from Home stays stopped until the vehicle is unplugged and reconnected.
 
-Without a `tls` section, the plugin listens using plain `ws://`. The endpoint does not require authentication, so expose its port only on a trusted, isolated network. Use `allowedChargerIds` to reject unexpected identifiers, but do not treat an identifier as a credential.
+Without a `tls` section, the plugin listens using plain `ws://`. The endpoint does not require authentication, so expose its port only on a trusted, isolated network. Use `allowedChargerIds` to reject unexpected identifiers, but do not treat an identifier as a credential. If this value is empty, any device on the network that connects to the server gets an accessory.
 
 To enable `wss://`, add certificate paths that are readable inside the Homebridge container or process:
 
