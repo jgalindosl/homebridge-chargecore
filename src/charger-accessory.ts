@@ -49,7 +49,15 @@ export class ChargerAccessory {
       .onSet(async (value: CharacteristicValue) => {
         const charging = Boolean(value);
         this.log.info(`${charging ? 'Starting' : 'Stopping'} charging on charger ${chargerId}`);
-        await this.setCharging(chargerId, charging);
+        try {
+          await this.setCharging(chargerId, charging);
+        } catch (error) {
+          // HapStatusError makes Home show "No Response" without Homebridge
+          // reporting the failure as a plugin error.
+          const message = error instanceof Error ? error.message : String(error);
+          this.log.warn(`Could not ${charging ? 'start' : 'stop'} charging on charger ${chargerId}: ${message}`);
+          throw new api.hap.HapStatusError(api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+        }
       });
 
     for (const characteristic of [...this.outlet.characteristics]) {

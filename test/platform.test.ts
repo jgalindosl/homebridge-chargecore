@@ -121,6 +121,20 @@ describe('ChargeCorePlatform', () => {
     expect(api.registerPlatformAccessories).toHaveBeenCalledTimes(1);
   });
 
+  it('reports HomeKit set failures as SERVICE_COMMUNICATION_FAILURE', async () => {
+    const { api, emitTelemetry } = await launch(undefined);
+    emitTelemetry(telemetry());
+    await flush();
+
+    const [accessory] = api.registerPlatformAccessories.mock.calls[0]![2] as FakePlatformAccessory[];
+    const on = accessory!.getService(hap.Service.Outlet)!.getCharacteristic(hap.Characteristic.On);
+    const warnings: unknown[] = [];
+    on.on(hap.CharacteristicEventTypes.CHARACTERISTIC_WARNING, warning => warnings.push(warning));
+
+    await expect(on.handleSetRequest(false)).rejects.toBe(hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+    expect(warnings).toEqual([]);
+  });
+
   it('removes legacy Eve/Home+ characteristics from cached HAP outlets', async () => {
     let accessory!: FakePlatformAccessory;
     await launch(createMatterApi(), platform => {
