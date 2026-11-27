@@ -56,7 +56,7 @@ Accessories cached from earlier versions have their Eve-style energy and charger
 ## Requirements
 
 - Homebridge 2.5 or later
-- Node.js 22 or 24
+- Node.js 22.12.0 or later in the 22.x series, 24.x, or 26.x
 - An OCPP 1.6 JSON charger acting as a WebSocket client
 
 ## Install and build
