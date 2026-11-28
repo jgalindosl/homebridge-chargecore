@@ -28,8 +28,16 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
   ) {
     this.server = new ChargeCoreWssServer(config, log);
 
-    this.server.on('telemetry', telemetry => this.handleTelemetry(telemetry));
-    this.api.on('didFinishLaunching', () => void this.start());
+    this.server.on('telemetry', telemetry => {
+      try {
+        this.handleTelemetry(telemetry);
+      } catch (error) {
+        this.logFailure(`Unable to process telemetry from charger ${telemetry.chargerId}`, error);
+      }
+    });
+    this.api.on('didFinishLaunching', () => {
+      this.start().catch(error => this.logFailure('Unable to start ChargeCore', error));
+    });
     this.api.on('shutdown', () => void this.shutdown());
   }
 
@@ -63,7 +71,11 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
         this.log.info(`Renamed HomeKit accessory for charger ${chargerId} to ${DEVICE_NAME}`);
       }
     }
-    await this.startMatter();
+    try {
+      await this.startMatter();
+    } catch (error) {
+      this.logFailure('Unable to start ChargeCore Matter chargers', error);
+    }
 
     try {
       await this.server.start();
@@ -118,6 +130,11 @@ export class ChargeCorePlatform implements DynamicPlatformPlugin {
     );
     this.matterChargers.set(chargerId, charger);
     return charger.register();
+  }
+
+  /** Logs with the stack so a failure shows up in the Homebridge log instead of ending the bridge silently. */
+  private logFailure(message: string, error: unknown): void {
+    this.log.error(`${message}: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
   }
 
   private async shutdown(): Promise<void> {
